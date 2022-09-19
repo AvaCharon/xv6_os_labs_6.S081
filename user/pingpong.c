@@ -4,13 +4,15 @@
 int main(void){
 	int p1[2];
 	int p2[2];
-	char ping[4];
-	char pong[4];
 	pipe(p1);
 	pipe(p2);
-	if(fork()==0){
+    char ping[4];
+    char pong[4]; 
+    if(fork()==0){
+        //关闭不需要用的管道端
 		close(p1[1]);
 		close(p2[0]);
+        //从管道读取端文件中读取并输出到ping中
 		read(p1[0],ping,4);
 		close(p1[0]);
 		printf("%d: received %s\n",getpid(),&ping);

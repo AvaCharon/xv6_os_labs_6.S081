@@ -3,7 +3,7 @@
 
 int main(int argc,char* argv[]){
     if(argc != 2){
-        printf("Sleep needs one argument!\n"); //检查参数数量是否正确
+	printf("Sleep needs one argument!\n"); //检查参数数量是否正确
         exit(-1);
     }
     int ticks = atoi(argv[1]); //将字符串参数转为整数
