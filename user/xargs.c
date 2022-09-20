@@ -43,9 +43,9 @@ int main(int argc,char *argv[]){
                     exec(argv[1],args);
                     exit(0);
                 }
-                //将line清空
-                //memset(line,'\0',512);
-                //memset(buf,'\0',512);
+                //将buf和line清空
+                memset(line,'\0',512);
+                memset(buf,'\0',512);
                 wait(0);
             }else{
                 //未到换行则还在将参数读入中
