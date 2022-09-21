@@ -5,6 +5,7 @@
 #include "user/user.h"
 #include "kernel/param.h"
 
+#define MAXN 512
 
 int main(int argc,char *argv[]){
     if(argc < 2){
@@ -21,35 +22,38 @@ int main(int argc,char *argv[]){
     }
 
     //从标准输入中读取追加参数
-    char buf[512];
+    char buf[MAXN];
     //存储每行参数，即每次执行命令追加传递的参数
-    char line[512];
+    char line[MAXN];
  
     //使要传递的参数数组指向最后一个参数的指针指向line
     //在for循环中只要每次改变line的值即可实现逐行读取参数
     args[index]=line;
+    args[index+1]=0;
 
-    //由于每接收一行就执行一次对应指令
+    int n;
+
+    //read读取文件时不阻塞，读取终端输入（标准输入）时在没有换行符时阻塞
+    //返回n=实际读取的字节数
+    //每接收一行就执行一次对应指令
     //逐行读取
-    while(read(0,buf,512)>0){
-        //printf("buf: %s f",buf);
-        //printf("line: %s f",line);
+    while((n = read(0,buf,MAXN))>0){
         //读取到换行符
         //换行符后实际上buf的内容仍是上次读的未被覆盖的内容
-        for(int i=0;i<strlen(buf);i++){
+        for(int i=0,j=0;i<n;i++){
             if(buf[i]=='\n'){
                 //创建子线程执行一次命令
                 if(fork()==0){
                     exec(argv[1],args);
                     exit(0);
                 }
-                //将buf和line清空
-                memset(line,'\0',512);
-                memset(buf,'\0',512);
+                //将line清空
+                memset(line,'\0',MAXN);
+                j=0;
                 wait(0);
             }else{
                 //未到换行则还在将参数读入中
-                line[i]=buf[i];
+                line[j++]=buf[i];
             }
         }
     } 
