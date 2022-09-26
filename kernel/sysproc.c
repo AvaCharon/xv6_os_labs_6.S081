@@ -93,5 +93,17 @@ sys_uptime(void)
   acquire(&tickslock);
   xticks = ticks;
   release(&tickslock);
-  return xticks;
+  return  xticks;
+}
+
+uint64
+sys_trace(void)
+{
+    int n;
+    if(argint(0,&n)<0){
+        return -1;
+    }
+    //将本进程要追踪的系统调用信息存储到PCB中
+    myproc()->mask = n;
+    return 0;
 }

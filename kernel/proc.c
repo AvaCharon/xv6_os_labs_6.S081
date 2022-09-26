@@ -259,7 +259,9 @@ int
 fork(void)
 {
   int i, pid;
+  //子进程PCB
   struct proc *np;
+  //父进程PCB
   struct proc *p = myproc();
 
   // Allocate process.
@@ -290,6 +292,9 @@ fork(void)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
+
+  //将父进程中的mask信息复制到子进程中
+  np->mask = p->mask;
 
   pid = np->pid;
 
