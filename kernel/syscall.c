@@ -129,15 +129,16 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
 [SYS_trace]   sys_trace,
+[SYS_sysinfo] sys_sysinfo,
 };
 
 
 //系统调用对应名字的数组
 //如sys_fork的系统调用号为1,则数组下标为一的元素是sys_fork
-static char* syscall_names[23]={"","sys_fork","sys_exit","sys_wait","sys_pipe",
+static char* syscall_names[24]={"","sys_fork","sys_exit","sys_wait","sys_pipe",
 "sys_read","sys_kill","sys_exec","sys_fstat","sys_chdir","sys_dup","sys_getpid",
 "sys_sbrk","sys_sleep","sys_uptime","sys_open","sys_write","sys_mknod",
-"sys_unlink","sys_link","sys_mkdir","sys_close","sys_trace"};
+"sys_unlink","sys_link","sys_mkdir","sys_close","sys_trace","sys_sysinfo"};
 
 void
 syscall(void)
