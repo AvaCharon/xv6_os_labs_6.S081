@@ -6,6 +6,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sysinfo.h"
 
 uint64
 sys_exit(void)
@@ -105,5 +106,34 @@ sys_trace(void)
     }
     //将本进程要追踪的系统调用信息存储到PCB中
     myproc()->mask = n;
+    return 0;
+}
+
+uint64
+sys_sysinfo(void){
+    uint64 addr;
+    struct proc *p = myproc();
+    struct sysinfo info;
+
+    //获取a0即传入的第一个参数，即要保存内容的用户空间地址
+    if(argaddr(0,&addr)<0){
+        return -1;
+    }
+
+    //获取信息并填入info中
+    info.freemem = calfreemem();
+    info.nproc = calnproc();
+    info.freefd = calfreefd();
+
+    //从内核空间复制到用户空间
+    //copyout各参数意义：
+    //pagetable_t pagetable:要复制到的目标进程
+    //char *dst:要复制到的目标进程中的地址
+    //uint64 srcva:要复制的内容地址
+    //uint64 len:要复制的长度
+    if(copyout(p->pagetable,addr,(char *)&info,sizeof(info))<0){
+        return -1;
+    }
+
     return 0;
 }

@@ -80,3 +80,16 @@ kalloc(void)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
 }
+
+//计算空余内存（bytes）
+uint64
+calfreemem(void){
+    int ret = 0;
+    //freelist指向的是空余内存页链表头
+    struct run *r = kmem.freelist;
+    while(r){
+        ret += PGSIZE;
+        r = r->next;
+    }
+    return ret;
+}

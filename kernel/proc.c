@@ -698,3 +698,36 @@ procdump(void)
     printf("\n");
   }
 }
+
+//计算进程数
+uint64
+calnproc(void){
+    uint64 ret = 0;
+    struct proc *p = proc;
+    //遍历进程数组，通过PCB中的状态判断进程并统计数目
+    for(;p < &proc[NPROC]; p++){
+        //当使用进程状态时要持有锁：p->lock
+        acquire(&p->lock);
+        if(p->state != UNUSED){
+            ret++;
+        }
+        release(&p->lock);
+    }
+    return ret;
+}
+
+//计算空余文件描述符
+uint64
+calfreefd(void){
+    uint ret = 0;
+    struct proc *p = proc;
+    //遍历进程中的文件数组并统计数目
+    for(int fd = 0;fd < NOFILE;fd++){
+        acquire(&p->lock);
+        if(p->ofile[fd]==0){
+            ret++;
+        }
+        release(&p->lock);
+    }
+    return ret;
+}
