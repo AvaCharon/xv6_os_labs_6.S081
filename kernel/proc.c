@@ -708,7 +708,7 @@ calnproc(void){
     for(;p < &proc[NPROC]; p++){
         //当使用进程状态时要持有锁：p->lock
         acquire(&p->lock);
-        if(p->state != UNUSED){
+        if(p->state == UNUSED){
             ret++;
         }
         release(&p->lock);
@@ -720,7 +720,7 @@ calnproc(void){
 uint64
 calfreefd(void){
     uint ret = 0;
-    struct proc *p = proc;
+    struct proc *p = myproc();
     //遍历进程中的文件数组并统计数目
     for(int fd = 0;fd < NOFILE;fd++){
         acquire(&p->lock);

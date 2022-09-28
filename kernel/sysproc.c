@@ -124,7 +124,7 @@ sys_sysinfo(void){
     info.freemem = calfreemem();
     info.nproc = calnproc();
     info.freefd = calfreefd();
-
+    
     //从内核空间复制到用户空间
     //copyout各参数意义：
     //pagetable_t pagetable:要复制到的目标进程
