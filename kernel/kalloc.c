@@ -18,15 +18,21 @@ struct run {
   struct run *next;
 };
 
-struct {
+struct kmem{
   struct spinlock lock;
   struct run *freelist;
 } kmem;
 
+//每个cpu各有一个内存链表
+struct kmem kmemArray[NCPU];
+
+//初始化
 void
 kinit()
 {
-  initlock(&kmem.lock, "kmem");
+    for(int i=0;i<NCPU;i++){
+        initlock(&kmemArray[i].lock,"kmem");
+    }
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -56,11 +62,44 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
-  r->next = kmem.freelist;
-  kmem.freelist = r;
-  release(&kmem.lock);
+  //关闭中断
+  push_off();
+  int id = cpuid();
+  pop_off();
+  
+  //头插法
+  acquire(&kmemArray[id].lock);
+  r->next = kmemArray[id].freelist;
+  kmemArray[id].freelist = r;
+  release(&kmemArray[id].lock);
 }
+
+//偷取其他cpu的空余内存
+void *
+steal(int cpuid)
+{
+    struct run *r = kmemArray[cpuid].freelist;
+    int i;
+    for(i=0;i<NCPU;i++){
+        if(i!=cpuid){
+            acquire(&kmemArray[i].lock);       
+            if(kmemArray[i].freelist){
+                r = kmemArray[i].freelist;
+                kmemArray[i].freelist=r->next;
+                break;
+            }
+            else{
+                release(&kmemArray[i].lock);
+            }
+        }
+    }
+    //如果成功偷取，应释放对应锁
+    if(r){
+        release(&kmemArray[i].lock);
+    }
+    return (void*)r;
+}
+
 
 // Allocate one 4096-byte page of physical memory.
 // Returns a pointer that the kernel can use.
@@ -70,11 +109,18 @@ kalloc(void)
 {
   struct run *r;
 
-  acquire(&kmem.lock);
-  r = kmem.freelist;
+  push_off();
+  int id = cpuid();
+  pop_off();
+
+  acquire(&kmemArray[id].lock);
+  r = kmemArray[id].freelist;
   if(r)
-    kmem.freelist = r->next;
-  release(&kmem.lock);
+    kmemArray[id].freelist = r->next;
+  //否则说明当前cpu的内存用尽，应偷取
+  else
+    r = steal(id);
+  release(&kmemArray[id].lock);
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
