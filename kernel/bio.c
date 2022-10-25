@@ -31,8 +31,8 @@ struct {
   // Sorted by how recently the buffer was used.
   // head.next is most recent, head.prev is least.
   //struct buf head;
-  struct buf buckets[NBUFBUKETS];
-  struct spinlock bucketslock[NBUFBUKETS];
+  struct buf buckets[NBUFBUCKETS];
+  struct spinlock bucketslock[NBUFBUCKETS];
 } bcache;
 
 void
@@ -40,19 +40,15 @@ binit(void)
 {
   struct buf *b;
 
-  //initlock(&bcache.lock, "bcache");
-  for(int i=0;i<NBUFBUKETS;i++){
+  for(int i=0;i<NBUFBUCKETS;i++){
       initlock(&bcache.bucketslock[i],"bcachebucket");
       bcache.buckets[i].prev = &bcache.buckets[i];
       bcache.buckets[i].next = &bcache.buckets[i];
   }
   // Create linked list of buffers
-  //bcache.head.prev = &bcache.head;
-  //bcache.head.next = &bcache.head;
   int hashid;
   for(b = bcache.buf; b < bcache.buf+NBUF; b++){
-    hashid = (b-bcache.buf)%NBUFBUKETS;
-    b->time_stamp = ticks;
+    hashid = b->blockno%NBUFBUCKETS;
     b->next = bcache.buckets[hashid].next;
     b->prev = &bcache.buckets[hashid];
     initsleeplock(&b->lock, "buffer");
@@ -69,14 +65,13 @@ bget(uint dev, uint blockno)
 {
   struct buf *b;
 
-  int hashid = blockno%NBUFBUKETS;
+  int hashid = blockno%NBUFBUCKETS;
 
   acquire(&bcache.bucketslock[hashid]);
 
   // Is the block already cached?
   for(b = bcache.buckets[hashid].next; b != &bcache.buckets[hashid]; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
-      b->time_stamp = ticks;
       b->refcnt++;
       release(&bcache.bucketslock[hashid]);
       acquiresleep(&b->lock);
@@ -100,12 +95,11 @@ bget(uint dev, uint blockno)
   // Not cached.
   // Recycle the least recently used (LRU) unused buffer.
   // 从其他哈希桶里取
-  for(int i=0;i<NBUFBUKETS;i++){
+  for(int i=0;i<NBUFBUCKETS;i++){
       if(i!=hashid){
           acquire(&bcache.bucketslock[i]);
           for(b = bcache.buckets[i].prev;b != &bcache.buckets[i];b = b->prev){
               if(b->refcnt == 0){
-                  b->time_stamp = ticks;
                   b->dev = dev;
                   b->blockno = blockno;
                   b->valid = 0;
@@ -164,7 +158,7 @@ brelse(struct buf *b)
 
   releasesleep(&b->lock);
 
-  int hashid = (b-bcache.buf)%NBUFBUKETS;
+  int hashid = b->blockno%NBUFBUCKETS;
 
   acquire(&bcache.bucketslock[hashid]);
   b->refcnt--;
@@ -184,7 +178,7 @@ brelse(struct buf *b)
 
 void
 bpin(struct buf *b) {
-  int hashid = (b-bcache.buf)%NBUFBUKETS;
+  int hashid = b->blockno%NBUFBUCKETS;
   acquire(&bcache.bucketslock[hashid]);
   b->refcnt++;
   release(&bcache.bucketslock[hashid]);
@@ -192,7 +186,7 @@ bpin(struct buf *b) {
 
 void
 bunpin(struct buf *b) {
-  int hashid = (b-bcache.buf)%NBUFBUKETS;
+  int hashid = b->blockno%NBUFBUCKETS;
   acquire(&bcache.bucketslock[hashid]);
   b->refcnt--;
   release(&bcache.bucketslock[hashid]);
