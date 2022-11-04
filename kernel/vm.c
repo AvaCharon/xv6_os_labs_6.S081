@@ -298,6 +298,7 @@ printpagetable(pagetable_t pagetable,int level){
             for(int j=0;j<level;j++){
                 printf("|| ");
             }
+            printf("||");
             printf("%d: pte %p pa %p\n",i,pte,PTE2PA(pte));
         }
         if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X))==0){
