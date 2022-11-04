@@ -296,7 +296,7 @@ printpagetable(pagetable_t pagetable,int level){
         pte_t pte = pagetable[i];
         if((pte & PTE_V)){
             for(int j=0;j<level;j++){
-                printf(".. ");
+                printf("|| ");
             }
             printf("%d: pte %p pa %p\n",i,pte,PTE2PA(pte));
         }
