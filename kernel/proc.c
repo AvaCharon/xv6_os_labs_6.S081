@@ -40,6 +40,7 @@ procinit(void)
       uint64 va = KSTACK((int) (p - proc));
       kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
       p->kstack = va;
+      p->kstack_pa = (uint64)pa;
   }
   kvminithart();
 }
@@ -113,6 +114,23 @@ found:
     return 0;
   }
 
+  //设置进程私有的内核页表
+  if((p->k_pagetable=prockvminit())==0){
+      freeproc(p);
+      release(&p->lock);
+      return 0;
+  }
+
+  //将内核栈映射到进程私有的内核页表中
+  //char *pa = kalloc();
+  //if(pa == 0)
+  //    panic("kalloc");
+  //uint64 va = KSTACK((int) (p - proc));
+  //kvmmap(va,(uint64)pa,PGSIZE,PTE_R|PTE_W);
+  kptmap(p->k_pagetable,p->kstack, p->kstack_pa, PGSIZE, PTE_R | PTE_W);
+  //p->kstack = va;
+  //p->kstack_pa = (uint64)pa;
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -139,6 +157,12 @@ freeproc(struct proc *p)
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+
+  //清除进程私有的内核页表
+  if(p->k_pagetable)
+	kptfree(p->k_pagetable);
+  p->k_pagetable = 0;
+
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
@@ -473,11 +497,20 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+
+        //进程调度后先将satp设置为当前进程的内核页表
+        //写入satp、清空TLB
+        w_satp(MAKE_SATP(p->k_pagetable));
+        sfence_vma();
+
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0; // cpu dosen't run any process now
+
+        //cpu不运行任何进程时使用全局的内核页表
+        kvminithart();
 
         found = 1;
       }

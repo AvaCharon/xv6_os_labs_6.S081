@@ -47,6 +47,32 @@ kvminit()
   kvmmap(TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 }
 
+//重写kvmmap
+void
+kptmap(pagetable_t pg,uint64 va,uint64 pa,uint64 sz,int perm){
+    if(mappages(pg,va,sz,pa,perm)!=0){
+        panic("kvmmap");
+    }
+}
+
+//为每个进程创建独立的内核页表
+//模仿kvminit，建立直接映射
+pagetable_t
+prockvminit()
+{
+    pagetable_t kpgtable = (pagetable_t) kalloc();
+    memset(kpgtable,0,PGSIZE);
+    kptmap(kpgtable,UART0,UART0,PGSIZE,PTE_R|PTE_W);
+    kptmap(kpgtable,VIRTIO0,VIRTIO0,PGSIZE,PTE_R|PTE_W);
+    //kptmap(kpgtable,CLINT,CLINT,0x100000,PTE_R|PTE_W);
+    kptmap(kpgtable,PLIC,PLIC,0x400000,PTE_R|PTE_W);
+    kptmap(kpgtable,KERNBASE,KERNBASE,(uint64)etext-KERNBASE,PTE_R|PTE_X);
+    kptmap(kpgtable,(uint64)etext,(uint64)etext,PHYSTOP-(uint64)etext,PTE_R|PTE_W);
+    kptmap(kpgtable,TRAMPOLINE,(uint64)trampoline,PGSIZE,PTE_R|PTE_X);
+    return kpgtable;
+}
+
+
 // Switch h/w page table register to the kernel's page table,
 // and enable paging.
 void
@@ -138,7 +164,7 @@ kvmpa(uint64 va)
   if((*pte & PTE_V) == 0)
     panic("kvmpa");
   pa = PTE2PA(*pte);
-  return pa+off;
+  return pa+off;//cpu不运行任何进程时使用全局的内核页表                             
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
@@ -290,10 +316,29 @@ freewalk(pagetable_t pagetable)
   kfree((void*)pagetable);
 }
 
+//释放每个进程的内核页表
+void
+kptfree(pagetable_t kpagetable) {
+  for(int i = 0; i < 512; i++){
+    pte_t pte = kpagetable[i];
+    if (pte & PTE_V){
+		kpagetable[i] = 0;
+        //非叶子页表则递归调用kptfree()
+		if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+		  uint64 child = PTE2PA(pte);
+		  kptfree((pagetable_t)child);
+		}
+    }
+  }
+  kfree((void*)kpagetable);
+}
+
+//打印当前页表pagetable，level当前页表级数
 void
 printpagetable(pagetable_t pagetable,int level){
     for(int i=0;i<512;i++){
         pte_t pte = pagetable[i];
+        //页表有效则打印信息
         if((pte & PTE_V)){
             for(int j=0;j<level;j++){
                 printf("|| ");
@@ -301,6 +346,7 @@ printpagetable(pagetable_t pagetable,int level){
             printf("||");
             printf("%d: pte %p pa %p\n",i,pte,PTE2PA(pte));
         }
+        //不是叶子页表则递归打印
         if((pte & PTE_V) && (pte & (PTE_R|PTE_W|PTE_X))==0){
             uint64 child = PTE2PA(pte);
             printpagetable((pagetable_t)child,level+1);
