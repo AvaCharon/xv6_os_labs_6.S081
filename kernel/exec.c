@@ -99,8 +99,8 @@ exec(char *path, char **argv)
   if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
     goto bad;
 
-  uvmunmap(p->k_pagetable,0,PGROUNDUP(oldsz)/PGSIZE,0);
-  upttokpt(pagetable,p->k_pagetable,0,sz);
+  //uvmunmap(p->k_pagetable,0,PGROUNDUP(oldsz)/PGSIZE,0);
+  //upttokpt(pagetable,p->k_pagetable,0,sz);
 
   // arguments to user main(argc, argv)
   // argc is returned via the system call return
@@ -121,6 +121,12 @@ exec(char *path, char **argv)
   p->trapframe->sp = sp; // initial stack pointer
   proc_freepagetable(oldpagetable, oldsz);
 
+  //释放原来用户页表在内核页表对应部分，映射新的用户页表
+  uvmunmap(p->k_pagetable,0,PGROUNDUP(oldsz)/PGSIZE,0);
+  upttokpt(p->pagetable,p->k_pagetable,0,p->sz);
+
+
+  //lab4:1  vmprint
   if(p->pid==1){
       vmprint(p->pagetable);
   }
