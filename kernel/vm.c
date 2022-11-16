@@ -316,9 +316,28 @@ freewalk(pagetable_t pagetable)
   kfree((void*)pagetable);
 }
 
+void kptfree_new(pagetable_t kpagetable,int level,int sign){
+  for(int i = 0; i < 512; i++){
+     pte_t pte = kpagetable[i];
+     if (pte & PTE_V){
+         kpagetable[i] = 0;
+         //避免重复回收叶子页表
+         if(level==1&&sign==0&&i<96){
+            continue;
+         }
+         //非叶子页表则递归调用kptfree()
+         if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+           uint64 child = PTE2PA(pte);
+           kptfree_new((pagetable_t)child,level+1,i);
+         }
+     }
+   }
+   kfree((void*)kpagetable);
+}
+
 //释放每个进程的内核页表
 void
-kptfree(pagetable_t kpagetable) {
+kptfree(pagetable_t kpagetable) {  
   for(int i = 0; i < 512; i++){
     pte_t pte = kpagetable[i];
     if (pte & PTE_V){
@@ -326,7 +345,7 @@ kptfree(pagetable_t kpagetable) {
         //非叶子页表则递归调用kptfree()
 		if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
 		  uint64 child = PTE2PA(pte);
-		  kptfree((pagetable_t)child);
+		  kptfree_new((pagetable_t)child,1,i);
 		}
     }
   }
@@ -447,7 +466,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 //将用户页表映射到内核页表
 void
 upttokpt(pagetable_t upgt,pagetable_t kpgt,uint64 start,uint64 end){
-    if(end<start||end>=PLIC){
+    if(end<start||(PGROUNDUP(end))>=PLIC){
         panic("upttokpt:end");
     }
     pte_t *pte_u,*pte_k;

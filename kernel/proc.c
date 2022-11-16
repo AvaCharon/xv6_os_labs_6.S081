@@ -38,6 +38,7 @@ procinit(void)
       if(pa == 0)
         panic("kalloc");
       uint64 va = KSTACK((int) (p - proc));
+      //在内核页表建立内核栈的映射
       kvmmap(va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
       p->kstack = va;
       p->kstack_pa = (uint64)pa;
@@ -131,6 +132,8 @@ found:
     release(&p->lock);
     return 0;
   }
+
+  upttokpt(p->pagetable,p->k_pagetable,0,p->sz);
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
