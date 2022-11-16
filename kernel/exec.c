@@ -75,6 +75,8 @@ exec(char *path, char **argv)
   sp = sz;
   stackbase = sp - PGSIZE;
 
+  //upttokpt(pagetable,p->k_pagetable,0,sz);
+
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
@@ -96,6 +98,9 @@ exec(char *path, char **argv)
     goto bad;
   if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
     goto bad;
+
+  uvmunmap(p->k_pagetable,0,PGROUNDUP(oldsz)/PGSIZE,0);
+  upttokpt(pagetable,p->k_pagetable,0,sz);
 
   // arguments to user main(argc, argv)
   // argc is returned via the system call return

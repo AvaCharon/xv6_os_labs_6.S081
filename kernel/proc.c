@@ -122,14 +122,7 @@ found:
   }
 
   //将内核栈映射到进程私有的内核页表中
-  //char *pa = kalloc();
-  //if(pa == 0)
-  //    panic("kalloc");
-  //uint64 va = KSTACK((int) (p - proc));
-  //kvmmap(va,(uint64)pa,PGSIZE,PTE_R|PTE_W);
   kptmap(p->k_pagetable,p->kstack, p->kstack_pa, PGSIZE, PTE_R | PTE_W);
-  //p->kstack = va;
-  //p->kstack_pa = (uint64)pa;
 
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
@@ -245,6 +238,8 @@ userinit(void)
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
 
+  upttokpt(p->pagetable,p->k_pagetable,0,p->sz);
+
   // prepare for the very first "return" from kernel to user.
   p->trapframe->epc = 0;      // user program counter
   p->trapframe->sp = PGSIZE;  // user stack pointer
@@ -269,9 +264,12 @@ growproc(int n)
   if(n > 0){
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
+    //将新加的页表也加入到内核页表中
+    upttokpt(p->pagetable,p->k_pagetable,sz-n,sz);
     }
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
+    uvmunmap(p->k_pagetable,PGROUNDUP(sz),(PGROUNDUP(sz-n)-PGROUNDUP(sz))/PGSIZE,0);
   }
   p->sz = sz;
   return 0;
@@ -312,6 +310,8 @@ fork(void)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
+
+  upttokpt(np->pagetable,np->k_pagetable,0,np->sz); 
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
