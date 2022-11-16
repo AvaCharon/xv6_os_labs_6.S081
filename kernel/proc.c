@@ -272,7 +272,10 @@ growproc(int n)
     }
   } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
-    uvmunmap(p->k_pagetable,PGROUNDUP(sz),(PGROUNDUP(sz-n)-PGROUNDUP(sz))/PGSIZE,0);
+    int npages = (PGROUNDUP(sz-n)-PGROUNDUP(sz))/PGSIZE;
+    if(npages>0){
+        uvmunmap(p->k_pagetable,PGROUNDUP(sz),npages,0);
+    }
   }
   p->sz = sz;
   return 0;
@@ -314,6 +317,7 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
+  //将子进程的用户页表复制
   upttokpt(np->pagetable,np->k_pagetable,0,np->sz); 
 
   safestrcpy(np->name, p->name, sizeof(p->name));

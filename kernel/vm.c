@@ -346,6 +346,7 @@ kptfree(pagetable_t kpagetable) {
 		if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
 		  uint64 child = PTE2PA(pte);
 		  kptfree_new((pagetable_t)child,1,i);
+          //kptfree((pagetable_t)child);
 		}
     }
   }
