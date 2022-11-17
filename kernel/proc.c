@@ -133,13 +133,15 @@ found:
     return 0;
   }
 
-  upttokpt(p->pagetable,p->k_pagetable,0,p->sz);
+  //upttokpt(p->pagetable,p->k_pagetable,0,p->sz);
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  //printf("allocproc:%d\n",p->pid);
 
   return p;
 }
@@ -240,7 +242,8 @@ userinit(void)
   // and data into it.
   uvminit(p->pagetable, initcode, sizeof(initcode));
   p->sz = PGSIZE;
-
+  
+  // 包含第一个进程的用户页表
   upttokpt(p->pagetable,p->k_pagetable,0,p->sz);
 
   // prepare for the very first "return" from kernel to user.
@@ -265,12 +268,17 @@ growproc(int n)
 
   sz = p->sz;
   if(n > 0){
+    if((sz + n) >= PLIC){
+      return -1;
+    }
     if((sz = uvmalloc(p->pagetable, sz, sz + n)) == 0) {
       return -1;
-    //将新加的页表也加入到内核页表中
-    upttokpt(p->pagetable,p->k_pagetable,sz-n,sz);
     }
-  } else if(n < 0){
+    //将新加的页表也加入到内核页表中
+    if((upttokpt(p->pagetable, p->k_pagetable, p->sz, sz)) < 0){
+      return -1;
+    }
+    } else if(n < 0){
     sz = uvmdealloc(p->pagetable, sz, sz + n);
     int npages = (PGROUNDUP(sz-n)-PGROUNDUP(sz))/PGSIZE;
     if(npages>0){
@@ -317,8 +325,12 @@ fork(void)
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
 
-  //将子进程的用户页表复制
-  upttokpt(np->pagetable,np->k_pagetable,0,np->sz); 
+  // 父进程用户空间的页表也全部拷贝一遍给子进程
+  if(upttokpt(np->pagetable, np->k_pagetable, 0, np->sz) < 0){
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
@@ -356,6 +368,7 @@ reparent(struct proc *p)
     }
   }
 }
+
 
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
@@ -510,6 +523,8 @@ scheduler(void)
         w_satp(MAKE_SATP(p->k_pagetable));
         sfence_vma();
 
+        //printf("scheduler:%d\n",p->pid);
+        
         swtch(&c->context, &p->context);
 
         // Process is done running for now.

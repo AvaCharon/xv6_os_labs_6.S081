@@ -51,7 +51,7 @@ kvminit()
 void
 kptmap(pagetable_t pg,uint64 va,uint64 pa,uint64 sz,int perm){
     if(mappages(pg,va,sz,pa,perm)!=0){
-        panic("kvmmap");
+        panic("kptmap");
     }
 }
 
@@ -60,16 +60,19 @@ kptmap(pagetable_t pg,uint64 va,uint64 pa,uint64 sz,int perm){
 pagetable_t
 prockvminit()
 {
-    pagetable_t kpgtable = (pagetable_t) kalloc();
-    memset(kpgtable,0,PGSIZE);
-    kptmap(kpgtable,UART0,UART0,PGSIZE,PTE_R|PTE_W);
-    kptmap(kpgtable,VIRTIO0,VIRTIO0,PGSIZE,PTE_R|PTE_W);
-    //kptmap(kpgtable,CLINT,CLINT,0x100000,PTE_R|PTE_W);
-    kptmap(kpgtable,PLIC,PLIC,0x400000,PTE_R|PTE_W);
-    kptmap(kpgtable,KERNBASE,KERNBASE,(uint64)etext-KERNBASE,PTE_R|PTE_X);
-    kptmap(kpgtable,(uint64)etext,(uint64)etext,PHYSTOP-(uint64)etext,PTE_R|PTE_W);
-    kptmap(kpgtable,TRAMPOLINE,(uint64)trampoline,PGSIZE,PTE_R|PTE_X);
-    return kpgtable;
+  pagetable_t kpt; //用户进程自己的pagetable
+  //create an empty user page table, returns 0 if out of memory.
+  kpt = uvmcreate(); 
+  if (kpt == 0) 
+    return 0;
+  kptmap(kpt, UART0, UART0, PGSIZE, PTE_R | PTE_W);
+  kptmap(kpt, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
+  //kptmap(kpt, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  kptmap(kpt, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
+  kptmap(kpt, KERNBASE, KERNBASE, (uint64)etext-KERNBASE, PTE_R | PTE_X);
+  kptmap(kpt, (uint64)etext, (uint64)etext, PHYSTOP-(uint64)etext, PTE_R | PTE_W);
+  kptmap(kpt, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+  return kpt;
 }
 
 
@@ -345,8 +348,8 @@ kptfree(pagetable_t kpagetable) {
         //非叶子页表则递归调用kptfree()
 		if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
 		  uint64 child = PTE2PA(pte);
-		  kptfree_new((pagetable_t)child,1,i);
-          //kptfree((pagetable_t)child);
+		  //kptfree_new((pagetable_t)child,1,i);
+          kptfree((pagetable_t)child);
 		}
     }
   }
@@ -465,9 +468,9 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 }
 
 //将用户页表映射到内核页表
-void
+int
 upttokpt(pagetable_t upgt,pagetable_t kpgt,uint64 start,uint64 end){
-    if(end<start||(PGROUNDUP(end))>=PLIC){
+    if((end<start)||(PGROUNDUP(end)>=PLIC)){
         panic("upttokpt:end");
     }
     pte_t *pte_u,*pte_k;
@@ -479,9 +482,10 @@ upttokpt(pagetable_t upgt,pagetable_t kpgt,uint64 start,uint64 end){
         if((pte_k = walk(kpgt,va,1))==0){
             panic("upttokpt:kernel pagetable");
         }
-        //将用户页表的叶子页表复制到内核页表中
+        //将用户页表页表项复制到内核页表中
         *pte_k = (*pte_u) & (~PTE_U);
     }
+    return 0;
 }
 
 // Copy from user to kernel.

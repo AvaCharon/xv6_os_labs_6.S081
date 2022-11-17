@@ -124,8 +124,9 @@ exec(char *path, char **argv)
   proc_freepagetable(oldpagetable, oldsz);
 
   //释放原来用户页表在内核页表对应部分，映射新的用户页表
-  uvmunmap(p->k_pagetable,0,PGROUNDUP(oldsz)/PGSIZE,0);
-  upttokpt(p->pagetable,p->k_pagetable,0,p->sz);
+  uvmunmap(p->k_pagetable, 0, PGROUNDUP(oldsz)/PGSIZE, 0);
+  if(upttokpt(p->pagetable, p->k_pagetable, 0, p->sz) < 0)
+   goto bad;
 
 
   //lab4:1  vmprint
